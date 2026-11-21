@@ -1,106 +1,96 @@
-﻿    using LibrarySystemWebAPI.Data;
-    using LibrarySystemWebAPI.Dtos.LoanDtos;
-    using LibrarySystemWebAPI.Entities;
-    using Microsoft.AspNetCore.Mvc;
-    using Microsoft.EntityFrameworkCore;
+﻿
+using AutoMapper;
+using LibrarySystemWebAPI.Data;
+using LibrarySystemWebAPI.Dtos.LoanDtos;
+using LibrarySystemWebAPI.Entities;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
-    namespace LibrarySystemWebAPI.Controllers
+namespace LibrarySystemWebAPI.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    public class LoansController : ControllerBase
     {
-    
-        [Route("api/[controller]")]
-        [ApiController]
-        public class LoansController : ControllerBase
+        private readonly ApplicationDBContext _dbContext;
+        private readonly IMapper _mapper;
+
+        public LoansController(ApplicationDBContext dbContext, IMapper mapper)
         {
-            private readonly ApplicationDBContext _dbContext;
+            _dbContext = dbContext;
+            _mapper = mapper;
+        }
 
-            public LoansController(ApplicationDBContext dbContext)
+        // Get All Loans
+        [HttpGet("GetAllLoans")]
+        public async Task<IActionResult> GetAllLoans()
+        {
+            var loans = await _dbContext.Loans
+                .Include(l => l.Book)
+                .Include(l => l.Borrower)
+                .AsNoTracking()
+                .ToListAsync();
+
+            var loansResponse =
+                _mapper.Map<List<GetLoanResponse>>(loans);
+
+            return Ok(loansResponse);
+        }
+
+        // Borrow Book
+        [HttpPost("BorrowBook")]
+        public async Task<IActionResult> BorrowBook(CreateLoanRequest request)
+        {
+            var book = await _dbContext.Books.FindAsync(request.BookId);
+
+            if (book is null)
+                return NotFound("Book is not found.");
+
+            var borrower = await _dbContext.Borrowers.FindAsync(request.BorrowerId);
+
+            if (borrower is null)
+                return NotFound("Borrower is not found.");
+
+            var existingLoan = await _dbContext.Loans
+                .FindAsync(request.BookId, request.BorrowerId);
+
+            if (existingLoan is not null)
+                return BadRequest("This borrower already has a loan record for this book.");
+
+            var loan = new Loan
             {
-                _dbContext = dbContext;
-            }
+                BookId = request.BookId,
+                BorrowerId = request.BorrowerId,
+                LoanDate = DateTime.UtcNow,
+                ReturnDate = null,
+                CreatedAt = DateTime.UtcNow
+            };
 
-            // Get All Loans
-            [HttpGet("GetAllLoans")]
-            public IActionResult GetAllLoans()
-            {
-                var loans = _dbContext.Loans
-                    .Include(l => l.Book)
-                    .Include(l => l.Borrower)
-                    .ToList();
+            await _dbContext.Loans.AddAsync(loan);
+            await _dbContext.SaveChangesAsync();
 
-                List<GetLoanResponse> loansResponse = new();
+            return Ok("Book borrowed successfully.");
+        }
 
-                foreach (var loan in loans)
-                {
-                    var loanResponse = new GetLoanResponse
-                    {
-                        BookId = loan.BookId,
-                        BookTitle = loan.Book.Title,
-                        BorrowerId = loan.BorrowerId,
-                        BorrowerName = loan.Borrower.Name,
-                        LoanDate = loan.LoanDate,
-                        ReturnDate = loan.ReturnDate
-                    };
+        // Return Book
+        [HttpPut("ReturnBook")]
+        public async Task<IActionResult> ReturnBook(int bookId, int borrowerId)
+        {
+            var loan = await _dbContext.Loans
+                .FindAsync(bookId, borrowerId);
 
-                    loansResponse.Add(loanResponse);
-                }
+            if (loan is null)
+                return NotFound("Loan record is not found.");
 
-                return Ok(loansResponse);
-            }
+            if (loan.ReturnDate is not null)
+                return BadRequest("This book has already been returned.");
 
-            // Borrow Book
-            [HttpPost("BorrowBook")]
-            public IActionResult BorrowBook(CreateLoanRequest request)
-            {
-                var book = _dbContext.Books.Find(request.BookId);
+            loan.ReturnDate = DateTime.UtcNow;
+            loan.ModifiedAt = DateTime.UtcNow;
 
-                if (book is null)
-                    return NotFound("Book is not found.");
+            await _dbContext.SaveChangesAsync();
 
-                var borrower = _dbContext.Borrowers.Find(request.BorrowerId);
-
-                if (borrower is null)
-                    return NotFound("Borrower is not found.");
-
-                var existingLoan = _dbContext.Loans
-                    .Find(request.BookId, request.BorrowerId);
-
-                if (existingLoan is not null)
-                    return BadRequest("This borrower already has a loan record for this book.");
-
-                var loan = new Loan
-                {
-                    BookId = request.BookId,
-                    BorrowerId = request.BorrowerId,
-                    LoanDate = DateTime.Now,
-                    ReturnDate = null
-                };
-
-                _dbContext.Loans.Add(loan);
-
-                _dbContext.SaveChanges();
-
-                return Ok("Book borrowed successfully.");
-            }
-
-            // Return Book
-            [HttpPut("ReturnBook")]
-            public IActionResult ReturnBook(int bookId, int borrowerId)
-            {
-                var loan = _dbContext.Loans
-                    .Find(bookId, borrowerId);
-
-                if (loan is null)
-                    return NotFound("Loan record is not found.");
-
-                if (loan.ReturnDate is not null)
-                    return BadRequest("This book has already been returned.");
-
-                loan.ReturnDate = DateTime.Now;
-
-                _dbContext.SaveChanges();
-
-                return Ok("Book returned successfully.");
-            }
-        
+            return Ok("Book returned successfully.");
+        }
     }
-    }
+}

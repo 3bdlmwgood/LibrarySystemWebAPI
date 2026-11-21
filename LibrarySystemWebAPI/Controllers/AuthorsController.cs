@@ -1,113 +1,107 @@
-﻿using LibrarySystemWebAPI.Data;
+﻿
+using AutoMapper;
+using LibrarySystemWebAPI.Data;
 using LibrarySystemWebAPI.Dtos.AuthorDtos;
 using LibrarySystemWebAPI.Entities;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
-namespace LibrarySystem.Controllers
+namespace LibrarySystemWebAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
     public class AuthorsController : ControllerBase
     {
         private readonly ApplicationDBContext _dbContext;
+        private readonly IMapper _mapper;
 
-        public AuthorsController(ApplicationDBContext dbContext)
+        public AuthorsController(ApplicationDBContext dbContext, IMapper mapper)
         {
             _dbContext = dbContext;
+            _mapper = mapper;
         }
 
         // Get All Authors
         [HttpGet("GetAllAuthors")]
-        public IActionResult GetAllAuthors()
+        public async Task<IActionResult> GetAllAuthors()
         {
-            var authors = _dbContext.Authors.ToList();
+            var authors = await _dbContext.Authors
+                .AsNoTracking()
+                .ToListAsync();
 
-            List<GetAuthorResponse> authorsResponse = new();
-
-            foreach (var author in authors)
-            {
-                var authorResponse = new GetAuthorResponse
-                {
-                    AuthorId = author.Id,
-                    AuthorName = author.Name,
-                    BirthDate = author.BirthDate
-                };
-
-                authorsResponse.Add(authorResponse);
-            }
+            var authorsResponse =  _mapper.Map<List<GetAuthorResponse>>(authors);
 
             return Ok(authorsResponse);
         }
 
         // Get Author By Id
         [HttpGet("GetById/{id:int}")]
-        public IActionResult GetById(int id)
+        public async Task<IActionResult> GetById(int id)
         {
-            var author = _dbContext.Authors.Find(id);
+            var author = await _dbContext.Authors
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Id == id);
 
             if (author is null)
                 return NotFound($"Author with Id = {id} is not found.");
 
-            var authorResponse = new GetAuthorResponse
-            {
-                AuthorId = author.Id,
-                AuthorName = author.Name,
-                BirthDate = author.BirthDate
-            };
+            var authorResponse = _mapper.Map<GetAuthorResponse>(author);
 
             return Ok(authorResponse);
         }
 
         // Create Author
         [HttpPost]
-        public IActionResult Create(CreateAuthorRequest request)
+        public async Task<IActionResult> Create(CreateAuthorRequest request)
         {
             var author = new Author
             {
                 Name = request.Name,
-                BirthDate = request.BirthDate
+                BirthDate = request.BirthDate,
+                CreatedAt = DateTime.UtcNow
             };
 
-            _dbContext.Authors.Add(author);
-
-            _dbContext.SaveChanges();
+            await _dbContext.Authors.AddAsync(author);
+            await _dbContext.SaveChangesAsync();
 
             return CreatedAtAction(
                 nameof(GetById),
                 new { id = author.Id },
-                author
+                _mapper.Map<GetAuthorResponse>(author)
             );
         }
 
         // Update Author
         [HttpPut]
-        public IActionResult Update(UpdateAuthorRequest request)
+        public async Task<IActionResult> Update(UpdateAuthorRequest request)
         {
-            var author = _dbContext.Authors.Find(request.Id);
+            var author = await _dbContext.Authors.FindAsync(request.Id);
 
             if (author is null)
                 return NotFound($"Author with Id = {request.Id} is not found.");
 
             author.Name = request.Name;
             author.BirthDate = request.BirthDate;
+            author.ModifiedAt = DateTime.UtcNow;
 
-            _dbContext.SaveChanges();
+            await _dbContext.SaveChangesAsync();
 
             return Ok();
         }
 
-        // Delete Author
+        // Delete Author (Soft Delete)
         [HttpDelete]
-        public IActionResult Remove(int id)
+        public async Task<IActionResult> Remove(int id)
         {
-            var author = _dbContext.Authors.Find(id);
+            var author = await _dbContext.Authors.FindAsync(id);
 
             if (author is null)
                 return NotFound($"Author with Id = {id} is not found.");
 
-            _dbContext.Authors.Remove(author);
+            author.IsDeleted = true;
+            author.ModifiedAt = DateTime.UtcNow;
 
-            _dbContext.SaveChanges();
+            await _dbContext.SaveChangesAsync();
 
             return NoContent();
         }

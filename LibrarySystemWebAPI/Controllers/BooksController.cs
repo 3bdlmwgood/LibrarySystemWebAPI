@@ -1,4 +1,6 @@
-﻿using LibrarySystemWebAPI.Data;
+﻿
+using AutoMapper;
+using LibrarySystemWebAPI.Data;
 using LibrarySystemWebAPI.Dtos.BookDtos;
 using LibrarySystemWebAPI.Entities;
 using Microsoft.AspNetCore.Mvc;
@@ -11,67 +13,51 @@ namespace LibrarySystemWebAPI.Controllers
     public class BooksController : ControllerBase
     {
         private readonly ApplicationDBContext _dbContext;
+        private readonly IMapper _mapper;
 
-        public BooksController(ApplicationDBContext dbContext)
+        public BooksController(ApplicationDBContext dbContext, IMapper mapper)
         {
             _dbContext = dbContext;
+            _mapper = mapper;
         }
 
         // Get All Books
         [HttpGet("GetAllBooks")]
-        public IActionResult GetAllBooks()
+        public async Task<IActionResult> GetAllBooks()
         {
-            var books = _dbContext.Books
+            var books = await _dbContext.Books
                 .Include(b => b.Author)
-                .ToList();
+                .AsNoTracking()
+                .ToListAsync();
 
-            List<GetBookResponse> booksResponse = new();
-
-            foreach (var book in books)
-            {
-                var bookResponse = new GetBookResponse
-                {
-                    BookId = book.Id,
-                    Title = book.Title,
-                    ISBN = book.ISBN,
-                    AuthorId = book.AuthorId,
-                    AuthorName = book.Author.Name
-                };
-
-                booksResponse.Add(bookResponse);
-            }
+            var booksResponse =
+                _mapper.Map<List<GetBookResponse>>(books);
 
             return Ok(booksResponse);
         }
 
         // Get Book By Id
         [HttpGet("GetById/{id:int}")]
-        public IActionResult GetById(int id)
+        public async Task<IActionResult> GetById(int id)
         {
-            var book = _dbContext.Books
+            var book = await _dbContext.Books
                 .Include(b => b.Author)
-                .FirstOrDefault(b => b.Id == id);
+                .AsNoTracking()
+                .FirstOrDefaultAsync(b => b.Id == id);
 
             if (book is null)
                 return NotFound($"Book with Id = {id} is not found.");
 
-            var bookResponse = new GetBookResponse
-            {
-                BookId = book.Id,
-                Title = book.Title,
-                ISBN = book.ISBN,
-                AuthorId = book.AuthorId,
-                AuthorName = book.Author.Name
-            };
+            var bookResponse = _mapper.Map<GetBookResponse>(book);
 
             return Ok(bookResponse);
         }
 
         // Create Book
         [HttpPost]
-        public IActionResult Create(CreateBookRequest request)
+        public async Task<IActionResult> Create(CreateBookRequest request)
         {
-            var author = _dbContext.Authors.Find(request.AuthorId);
+            var author = await _dbContext.Authors.FindAsync(request.AuthorId);
 
             if (author is null)
                 return NotFound($"Author with Id = {request.AuthorId} is not found.");
@@ -80,12 +66,12 @@ namespace LibrarySystemWebAPI.Controllers
             {
                 Title = request.Title,
                 ISBN = request.ISBN,
-                AuthorId = request.AuthorId
+                AuthorId = request.AuthorId,
+                CreatedAt = DateTime.UtcNow
             };
 
-            _dbContext.Books.Add(book);
-
-            _dbContext.SaveChanges();
+            await _dbContext.Books.AddAsync(book);
+            await _dbContext.SaveChangesAsync();
 
             return CreatedAtAction(
                 nameof(GetById),
@@ -96,14 +82,14 @@ namespace LibrarySystemWebAPI.Controllers
 
         // Update Book
         [HttpPut]
-        public IActionResult Update(UpdateBookRequest request)
+        public async Task<IActionResult> Update(UpdateBookRequest request)
         {
-            var book = _dbContext.Books.Find(request.Id);
+            var book = await _dbContext.Books.FindAsync(request.Id);
 
             if (book is null)
                 return NotFound($"Book with Id = {request.Id} is not found.");
 
-            var author = _dbContext.Authors.Find(request.AuthorId);
+            var author = await _dbContext.Authors.FindAsync(request.AuthorId);
 
             if (author is null)
                 return NotFound($"Author with Id = {request.AuthorId} is not found.");
@@ -111,24 +97,26 @@ namespace LibrarySystemWebAPI.Controllers
             book.Title = request.Title;
             book.ISBN = request.ISBN;
             book.AuthorId = request.AuthorId;
+            book.ModifiedAt = DateTime.UtcNow;
 
-            _dbContext.SaveChanges();
+            await _dbContext.SaveChangesAsync();
 
             return Ok();
         }
 
-        // Delete Book
+        // Delete Book (Soft Delete)
         [HttpDelete]
-        public IActionResult Remove(int id)
+        public async Task<IActionResult> Remove(int id)
         {
-            var book = _dbContext.Books.Find(id);
+            var book = await _dbContext.Books.FindAsync(id);
 
             if (book is null)
                 return NotFound($"Book with Id = {id} is not found.");
 
-            _dbContext.Books.Remove(book);
+            book.IsDeleted = true;
+            book.ModifiedAt = DateTime.UtcNow;
 
-            _dbContext.SaveChanges();
+            await _dbContext.SaveChangesAsync();
 
             return NoContent();
         }
