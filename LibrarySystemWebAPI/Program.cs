@@ -1,8 +1,9 @@
 
 using LibrarySystemWebAPI.Data;
-using Microsoft.EntityFrameworkCore;
 using LibrarySystemWebAPI.Extensions;
 using LibrarySystemWebAPI.Helpers;
+using LibrarySystemWebAPI.Middlewares;
+using Microsoft.EntityFrameworkCore;
 
 
 namespace LibrarySystemWebAPI
@@ -45,6 +46,14 @@ namespace LibrarySystemWebAPI
                     );
                 }
             }
+
+            app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+            app.UseMiddleware<RequestTimingMiddleware>();
+
+            app.UseMiddleware<RequestIdHeaderMiddleware>();
+
+            app.UseMiddleware<RateLimitingMiddleware>();
 
             // Configure Middleware
             if (app.Environment.IsDevelopment())

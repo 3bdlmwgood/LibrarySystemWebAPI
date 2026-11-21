@@ -4,6 +4,9 @@ using LibrarySystemWebAPI.Helpers;
 using Microsoft.EntityFrameworkCore;
 using LibrarySystemWebAPI.Repositories;
 using LibrarySystemWebAPI.Services;
+using LibrarySystemWebAPI.Data.Interceptors;
+using LibrarySystemWebAPI.Middlewares;
+
 
 namespace LibrarySystemWebAPI.Extensions
 {
@@ -20,11 +23,17 @@ namespace LibrarySystemWebAPI.Extensions
             services.AddOpenApi();
 
             // Database Connection
-            services.AddDbContext<ApplicationDBContext>(options =>
+            services.AddDbContext<ApplicationDBContext>((serviceProvider, options) =>
+            {
                 options.UseSqlServer(
-                    configuration.GetConnectionString("DefaultSqlConnection")
-                )
-            );
+                    configuration.GetConnectionString("DefaultSqlConnection"));
+
+                options.AddInterceptors(
+                    serviceProvider.GetRequiredService<CreatedAtInterceptor>(),
+                    serviceProvider.GetRequiredService<ModifiedAtInterceptor>(),
+                    serviceProvider.GetRequiredService<SoftDeleteInterceptor>()
+                );
+            });
 
             // AutoMapper
             services.AddAutoMapper(cfg =>
@@ -38,6 +47,12 @@ namespace LibrarySystemWebAPI.Extensions
 
             services.AddScoped<IAuthorRepository, AuthorRepository>();
             services.AddScoped<IAuthorService, AuthorService>();
+
+            services.AddScoped<CreatedAtInterceptor>();
+            services.AddScoped<ModifiedAtInterceptor>();
+            services.AddScoped<SoftDeleteInterceptor>();
+
+            services.AddTransient<RequestIdHeaderMiddleware>();
 
             return services;
         }

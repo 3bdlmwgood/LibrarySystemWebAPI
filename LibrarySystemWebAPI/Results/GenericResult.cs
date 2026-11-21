@@ -9,7 +9,6 @@
         {
             Value = value;
         }
-
         public static GenericResult<T> Success(T value)
             => new GenericResult<T>(true, value, string.Empty);
 
