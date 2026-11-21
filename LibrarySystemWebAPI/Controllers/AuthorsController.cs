@@ -1,10 +1,6 @@
-﻿
-using AutoMapper;
-using LibrarySystemWebAPI.Data;
-using LibrarySystemWebAPI.Dtos.AuthorDtos;
+﻿using Microsoft.AspNetCore.Mvc;
 using LibrarySystemWebAPI.Entities;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using LibrarySystemWebAPI.Services;
 
 namespace LibrarySystemWebAPI.Controllers
 {
@@ -12,98 +8,68 @@ namespace LibrarySystemWebAPI.Controllers
     [ApiController]
     public class AuthorsController : ControllerBase
     {
-        private readonly ApplicationDBContext _dbContext;
-        private readonly IMapper _mapper;
+        private readonly IAuthorService _service;
 
-        public AuthorsController(ApplicationDBContext dbContext, IMapper mapper)
+        public AuthorsController(IAuthorService service)
         {
-            _dbContext = dbContext;
-            _mapper = mapper;
+            _service = service;
         }
 
-        // Get All Authors
-        [HttpGet("GetAllAuthors")]
-        public async Task<IActionResult> GetAllAuthors()
+        [HttpGet]
+        public async Task<IActionResult> GetAll(
+            int pageNumber = 1,
+            int pageSize = 10,
+            string? searchTerm = null)
         {
-            var authors = await _dbContext.Authors
-                .AsNoTracking()
-                .ToListAsync();
+            var result = await _service.GetAllAsync(
+                pageNumber, pageSize, searchTerm);
 
-            var authorsResponse =  _mapper.Map<List<GetAuthorResponse>>(authors);
-
-            return Ok(authorsResponse);
+            return result.IsSuccess
+                ? Ok(result)
+                : BadRequest(result);
         }
 
-        // Get Author By Id
-        [HttpGet("GetById/{id:int}")]
+        [HttpGet("{id:int}")]
         public async Task<IActionResult> GetById(int id)
         {
-            var author = await _dbContext.Authors
-                .AsNoTracking()
-                .FirstOrDefaultAsync(a => a.Id == id);
+            var result = await _service.GetByIdAsync(id);
 
-            if (author is null)
-                return NotFound($"Author with Id = {id} is not found.");
-
-            var authorResponse = _mapper.Map<GetAuthorResponse>(author);
-
-            return Ok(authorResponse);
+            return result.IsSuccess
+                ? Ok(result)
+                : NotFound(result);
         }
 
-        // Create Author
         [HttpPost]
-        public async Task<IActionResult> Create(CreateAuthorRequest request)
+        public async Task<IActionResult> Create(Author author)
         {
-            var author = new Author
-            {
-                Name = request.Name,
-                BirthDate = request.BirthDate,
-                CreatedAt = DateTime.UtcNow
-            };
+            var result = await _service.CreateAsync(author);
 
-            await _dbContext.Authors.AddAsync(author);
-            await _dbContext.SaveChangesAsync();
-
-            return CreatedAtAction(
-                nameof(GetById),
-                new { id = author.Id },
-                _mapper.Map<GetAuthorResponse>(author)
-            );
+            return result.IsSuccess
+                ? Ok(result)
+                : BadRequest(result);
         }
 
-        // Update Author
-        [HttpPut]
-        public async Task<IActionResult> Update(UpdateAuthorRequest request)
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> Update(int id, Author author)
         {
-            var author = await _dbContext.Authors.FindAsync(request.Id);
+            if (id != author.Id)
+                return BadRequest("Id mismatch.");
 
-            if (author is null)
-                return NotFound($"Author with Id = {request.Id} is not found.");
+            var result = await _service.UpdateAsync(author);
 
-            author.Name = request.Name;
-            author.BirthDate = request.BirthDate;
-            author.ModifiedAt = DateTime.UtcNow;
-
-            await _dbContext.SaveChangesAsync();
-
-            return Ok();
+            return result.IsSuccess
+                ? Ok(result)
+                : NotFound(result);
         }
 
-        // Delete Author (Soft Delete)
-        [HttpDelete]
-        public async Task<IActionResult> Remove(int id)
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> Delete(int id)
         {
-            var author = await _dbContext.Authors.FindAsync(id);
+            var result = await _service.DeleteAsync(id);
 
-            if (author is null)
-                return NotFound($"Author with Id = {id} is not found.");
-
-            author.IsDeleted = true;
-            author.ModifiedAt = DateTime.UtcNow;
-
-            await _dbContext.SaveChangesAsync();
-
-            return NoContent();
+            return result.IsSuccess
+                ? Ok(result)
+                : NotFound(result);
         }
     }
 }

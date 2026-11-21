@@ -2,6 +2,8 @@
 using LibrarySystemWebAPI.Data;
 using LibrarySystemWebAPI.Helpers;
 using Microsoft.EntityFrameworkCore;
+using LibrarySystemWebAPI.Repositories;
+using LibrarySystemWebAPI.Services;
 
 namespace LibrarySystemWebAPI.Extensions
 {
@@ -31,6 +33,11 @@ namespace LibrarySystemWebAPI.Extensions
                 cfg.AddProfile<BookProfile>();
                 cfg.AddProfile<LoanProfile>();
             });
+
+            services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+
+            services.AddScoped<IAuthorRepository, AuthorRepository>();
+            services.AddScoped<IAuthorService, AuthorService>();
 
             return services;
         }
