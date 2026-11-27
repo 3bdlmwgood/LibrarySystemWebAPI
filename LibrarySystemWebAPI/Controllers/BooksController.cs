@@ -3,6 +3,8 @@ using AutoMapper;
 using LibrarySystemWebAPI.Data;
 using LibrarySystemWebAPI.Dtos.BookDtos;
 using LibrarySystemWebAPI.Entities;
+using LibrarySystemWebAPI.Filters;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,6 +12,10 @@ namespace LibrarySystemWebAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [ServiceFilter(typeof(ActionExecutionLoggingFilter))]
+    [ServiceFilter(typeof(ActionTimingFilter))]
+    [ServiceFilter(typeof(ExceptionHandlingFilter))]
+    [Authorize]
     public class BooksController : ControllerBase
     {
         private readonly ApplicationDBContext _dbContext;

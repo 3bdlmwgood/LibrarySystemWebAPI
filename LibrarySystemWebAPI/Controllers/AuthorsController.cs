@@ -1,11 +1,17 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using LibrarySystemWebAPI.Entities;
+﻿using LibrarySystemWebAPI.Entities;
+using LibrarySystemWebAPI.Filters;
 using LibrarySystemWebAPI.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace LibrarySystemWebAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [ServiceFilter(typeof(ActionExecutionLoggingFilter))]
+    [ServiceFilter(typeof(ActionTimingFilter))]
+    [ServiceFilter(typeof(ExceptionHandlingFilter))]
+    [Authorize]
     public class AuthorsController : ControllerBase
     {
         private readonly IAuthorService _service;

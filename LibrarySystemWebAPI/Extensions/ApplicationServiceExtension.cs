@@ -1,12 +1,17 @@
 ﻿
 using LibrarySystemWebAPI.Data;
+using LibrarySystemWebAPI.Data.Interceptors;
+using LibrarySystemWebAPI.Entities;
+using LibrarySystemWebAPI.Filters;
 using LibrarySystemWebAPI.Helpers;
-using Microsoft.EntityFrameworkCore;
+using LibrarySystemWebAPI.Middlewares;
 using LibrarySystemWebAPI.Repositories;
 using LibrarySystemWebAPI.Services;
-using LibrarySystemWebAPI.Data.Interceptors;
-using LibrarySystemWebAPI.Middlewares;
-
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 namespace LibrarySystemWebAPI.Extensions
 {
@@ -53,6 +58,67 @@ namespace LibrarySystemWebAPI.Extensions
             services.AddScoped<SoftDeleteInterceptor>();
 
             services.AddTransient<RequestIdHeaderMiddleware>();
+
+            // Filters
+            services.AddScoped<ActionExecutionLoggingFilter>();
+            services.AddScoped<ActionTimingFilter>();
+            services.AddScoped<ExceptionHandlingFilter>();
+
+
+            // Authentication and Authorization
+            services.AddDbContext<AuthenticationDbContext>(options =>
+    options.UseSqlServer(
+        configuration.GetConnectionString("AuthenticationConnection")
+    )
+);
+
+            services.AddIdentity<ApplicationUser, IdentityRole>()
+                .AddEntityFrameworkStores<AuthenticationDbContext>()
+                .AddDefaultTokenProviders();
+
+            services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme =
+                    JwtBearerDefaults.AuthenticationScheme;
+
+                options.DefaultChallengeScheme =
+                    JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+
+                    ValidIssuer = configuration["Jwt:Issuer"],
+                    ValidAudience = configuration["Jwt:Audience"],
+
+                    IssuerSigningKey = new SymmetricSecurityKey(
+                        Encoding.UTF8.GetBytes(configuration["Jwt:Key"]!)
+                    )
+                };
+            });
+
+            services.AddScoped<IJwtService, JwtService>();
+
+
+            // CORS Configuration
+            var corsOrigins =
+    configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? Array.Empty<string>();
+
+            services.AddCors(options =>
+            {
+                options.AddPolicy("ConfigurationOrigins", policy =>
+                {
+                    policy.WithOrigins(corsOrigins)
+                          .AllowAnyMethod()
+                          .AllowAnyHeader();
+                });
+            });
 
             return services;
         }

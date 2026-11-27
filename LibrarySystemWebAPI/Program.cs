@@ -65,6 +65,10 @@ namespace LibrarySystemWebAPI
 
             app.UseHttpsRedirection();
 
+            app.UseCors("ConfigurationOrigins");
+
+            app.UseAuthentication();
+
             app.UseAuthorization();
 
             app.MapControllers();
